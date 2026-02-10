@@ -46,8 +46,8 @@ def list_messages(
     Args:
         after: Optional ISO-8601 formatted string to only return messages after this date
         before: Optional ISO-8601 formatted string to only return messages before this date
-        sender_phone_number: Optional phone number to filter messages by sender
-        chat_jid: Optional chat JID to filter messages by chat
+        sender_phone_number: Optional phone number to filter messages by sender. Pass as string!
+        chat_jid: Optional chat JID to filter messages by chat. Pass as string!
         query: Optional search term to filter messages by content
         limit: Maximum number of messages to return (default 20)
         page: Page number for pagination (default 0)
@@ -111,7 +111,7 @@ def get_direct_chat_by_contact(sender_phone_number: str) -> Dict[str, Any]:
     """Get WhatsApp chat metadata by sender phone number.
     
     Args:
-        sender_phone_number: The phone number to search for
+        sender_phone_number: The phone number to search for. Pass this parameter as string with quotes!
     """
     chat = whatsapp_get_direct_chat_by_contact(sender_phone_number)
     return chat

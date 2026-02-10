@@ -8,6 +8,7 @@ import json
 import audio
 
 MESSAGES_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'whatsapp-bridge', 'store', 'messages.db')
+WA_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'whatsapp-bridge', 'store', 'whatsapp.db')
 WHATSAPP_API_BASE_URL = "http://localhost:8080/api"
 
 @dataclass
@@ -164,8 +165,26 @@ def list_messages(
             params.append(before)
 
         if sender_phone_number:
-            where_clauses.append("messages.sender = ?")
-            params.append(sender_phone_number)
+            conn2 = sqlite3.connect(WA_DB_PATH)
+            cursor2 = conn2.cursor()
+            cursor2.execute("""
+                SELECT
+                        lid
+                FROM whatsmeow_lid_map
+                WHERE pn LIKE ?
+                LIMIT 1
+            """, (f"%{sender_phone_number}%",))
+
+            lid_data = cursor2.fetchone()
+            if not lid_data:
+                return None
+            lid = lid_data[0]
+            
+            cursor2.close()
+            conn2.close()
+
+            where_clauses.append("messages.chat_jid = ?")
+            params.append(f"{lid}@lid")
             
         if chat_jid:
             where_clauses.append("messages.chat_jid = ?")
@@ -583,6 +602,25 @@ def get_chat(chat_jid: str, include_last_message: bool = True) -> Optional[Chat]
 def get_direct_chat_by_contact(sender_phone_number: str) -> Optional[Chat]:
     """Get chat metadata by sender phone number."""
     try:
+        conn = sqlite3.connect(WA_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                    lid
+            FROM whatsmeow_lid_map
+            WHERE pn LIKE ?
+            LIMIT 1
+        """, (f"%{sender_phone_number}%",))
+
+        lid_data = cursor.fetchone()
+        if not lid_data:
+            return "Lid not found for the given phone number"
+            
+        lid = lid_data[0]
+        
+        cursor.close()
+        conn.close()
+        
         conn = sqlite3.connect(MESSAGES_DB_PATH)
         cursor = conn.cursor()
         
@@ -597,14 +635,14 @@ def get_direct_chat_by_contact(sender_phone_number: str) -> Optional[Chat]:
             FROM chats c
             LEFT JOIN messages m ON c.jid = m.chat_jid 
                 AND c.last_message_time = m.timestamp
-            WHERE c.jid LIKE ? AND c.jid NOT LIKE '%@g.us'
+            WHERE c.jid = ?
             LIMIT 1
-        """, (f"%{sender_phone_number}%",))
+        """, (f"{lid}@lid",))
         
         chat_data = cursor.fetchone()
         
         if not chat_data:
-            return None
+            return f"No chat found for the given lid {lid}"
             
         return Chat(
             jid=chat_data[0],
