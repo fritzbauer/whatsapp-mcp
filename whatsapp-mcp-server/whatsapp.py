@@ -130,7 +130,7 @@ def list_messages(
     query: Optional[str] = None,
     limit: int = 20,
     page: int = 0,
-    include_context: bool = True,
+    include_context: bool = False,
     context_before: int = 1,
     context_after: int = 1
 ) -> List[Message]:
@@ -140,7 +140,7 @@ def list_messages(
         cursor = conn.cursor()
         
         # Build base query
-        query_parts = ["SELECT messages.timestamp, messages.sender, chats.name, messages.content, messages.is_from_me, chats.jid, messages.id, messages.media_type FROM messages"]
+        query_parts = ["SELECT DISTINCT messages.timestamp, messages.sender, chats.name, messages.content, messages.is_from_me, chats.jid, messages.id, messages.media_type FROM messages"]
         query_parts.append("JOIN chats ON messages.chat_jid = chats.jid")
         where_clauses = []
         params = []
@@ -176,15 +176,17 @@ def list_messages(
             """, (f"%{sender_phone_number}%",))
 
             lid_data = cursor2.fetchone()
-            if not lid_data:
-                return None
-            lid = lid_data[0]
-            
             cursor2.close()
             conn2.close()
-
-            where_clauses.append("messages.chat_jid = ?")
-            params.append(f"{lid}@lid")
+            if not lid_data:
+                where_clauses.append("messages.sender = ?")
+                params.append(sender_phone_number)
+            else:            
+                lid = lid_data[0]            
+                where_clauses.append("messages.chat_jid = ? OR messages.sender = ? OR messages.sender = ?")
+                params.append(f"{lid}@lid")
+                params.append(sender_phone_number)		
+                params.append(lid)
             
         if chat_jid:
             where_clauses.append("messages.chat_jid = ?")
@@ -202,7 +204,7 @@ def list_messages(
         query_parts.append("ORDER BY messages.timestamp DESC")
         query_parts.append("LIMIT ? OFFSET ?")
         params.extend([limit, offset])
-        
+        print(" ".join(query_parts))
         cursor.execute(" ".join(query_parts), tuple(params))
         messages = cursor.fetchall()
         
@@ -383,7 +385,7 @@ def list_chats(
         offset = (page ) * limit
         query_parts.append("LIMIT ? OFFSET ?")
         params.extend([limit, offset])
-        
+
         cursor.execute(" ".join(query_parts), tuple(params))
         chats = cursor.fetchall()
         
