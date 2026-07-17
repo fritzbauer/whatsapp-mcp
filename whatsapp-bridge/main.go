@@ -658,7 +658,8 @@ func downloadMedia(client *whatsmeow.Client, messageStore *MessageStore, message
 	}
 
 	// Download the media using whatsmeow client
-	mediaData, err := client.Download(context.Background(), downloader)
+	//mediaData, err := client.Download(context.Background(), downloader)
+	mediaData, err := client.DangerousInternals().DownloadAndDecrypt(context.Background(), downloader.URL, downloader.MediaKey, downloader.MediaType,downloader.FileEncSHA256, downloader.FileSHA256)
 	if err != nil {
 		return false, "", "", "", fmt.Errorf("failed to download media: %v", err)
 	}
